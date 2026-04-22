@@ -1,0 +1,342 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultrasonic Radar IoT Scanner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --neon: #00ff41;
+    --neon-dim: #00aa2a;
+    --neon-glow: rgba(0,255,65,0.4);
+    --red: #ff2020;
+    --red-glow: rgba(255,32,32,0.6);
+    --bg: #000000;
+    --panel: #050f05;
+    --border: #0a2a0a;
+    --sweep: rgba(0,255,65,0.85);
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-display: 'Orbitron', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--neon);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,255,65,0.015) 2px,
+      rgba(0,255,65,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header { width: 100%; max-width: 700px; padding: 18px 20px 10px; text-align: center; position: relative; }
+  .header-label { font-size: 10px; letter-spacing: 6px; color: var(--neon-dim); text-transform: uppercase; margin-bottom: 6px; }
+  h1 { font-family: var(--font-display); font-size: clamp(14px, 4vw, 22px); font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: var(--neon); text-shadow: 0 0 10px var(--neon-glow), 0 0 30px rgba(0,255,65,0.2); }
+  .header-line { height: 1px; background: linear-gradient(90deg, transparent, var(--neon), transparent); margin: 10px 0; box-shadow: 0 0 8px var(--neon-glow); }
+
+  main { width: 100%; max-width: 700px; padding: 0 12px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  
+  .radar-wrapper { width: 100%; position: relative; border: 1px solid #0d2a0d; border-radius: 4px; background: radial-gradient(ellipse at center bottom, #001a00 0%, #000 70%); box-shadow: 0 0 30px rgba(0,255,65,0.08), inset 0 0 40px rgba(0,0,0,0.8); overflow: hidden; }
+  .radar-wrapper::before { content: 'RADAR DISPLAY ACTIVE'; position: absolute; top: 8px; left: 12px; font-size: 9px; letter-spacing: 3px; color: var(--neon-dim); opacity: 0.6; z-index: 2; }
+  .radar-wrapper::after { content: 'MAX RANGE: 300cm'; position: absolute; top: 8px; right: 12px; font-size: 9px; letter-spacing: 2px; color: var(--neon-dim); opacity: 0.6; z-index: 2; }
+  
+  #radarCanvas { display: block; width: 100%; height: auto; }
+
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; width: 100%; }
+  .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 3px; padding: 10px 8px; text-align: center; position: relative; overflow: hidden; }
+  .stat-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--neon-dim), transparent); }
+  .stat-label { font-size: 8px; letter-spacing: 2px; color: var(--neon-dim); text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-family: var(--font-display); font-size: clamp(14px, 4vw, 20px); font-weight: 700; color: var(--neon); text-shadow: 0 0 8px var(--neon-glow); }
+  .stat-unit { font-size: 9px; color: var(--neon-dim); margin-left: 2px; }
+
+  .controls-row { display: flex; gap: 10px; width: 100%; align-items: center; flex-wrap: wrap; }
+  .btn { flex: 1; min-width: 120px; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 12px 10px; border: 1px solid var(--neon); background: transparent; color: var(--neon); cursor: pointer; border-radius: 3px; transition: all 0.15s; position: relative; overflow: hidden; }
+  .btn::before { content: ''; position: absolute; inset: 0; background: var(--neon); opacity: 0; transition: opacity 0.15s; }
+  .btn:hover::before { opacity: 0.08; }
+  .btn:active::before { opacity: 0.18; }
+  .btn:hover { box-shadow: 0 0 14px var(--neon-glow); text-shadow: 0 0 8px var(--neon-glow); }
+  .btn-demo { border-color: var(--neon-dim); color: var(--neon-dim); font-size: 10px; flex: 0.5; min-width: 80px; }
+  .btn-demo:hover { border-color: var(--neon); color: var(--neon); box-shadow: 0 0 10px var(--neon-glow); }
+
+  .status-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 3px; }
+  .led { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; background: #001800; border: 1px solid #0a2a0a; transition: all 0.2s; position: relative; }
+  .led.green { background: var(--neon); box-shadow: 0 0 8px var(--neon), 0 0 20px var(--neon-glow); border-color: var(--neon); }
+  .led.red { background: var(--red); box-shadow: 0 0 10px var(--red), 0 0 25px var(--red-glow); border-color: var(--red); animation: ledPulse 0.4s infinite alternate; }
+  @keyframes ledPulse { from { box-shadow: 0 0 10px var(--red), 0 0 20px var(--red-glow); } to { box-shadow: 0 0 18px var(--red), 0 0 40px var(--red-glow); } }
+  .led-alert { display: none; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--red); text-shadow: 0 0 10px var(--red-glow); animation: blink 0.5s step-start infinite; }
+  .led-alert.visible { display: block; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .conn-status { margin-left: auto; font-size: 10px; letter-spacing: 2px; color: var(--neon-dim); text-transform: uppercase; }
+  .conn-status.connected { color: var(--neon); text-shadow: 0 0 6px var(--neon-glow); }
+  .conn-status.error { color: var(--red); }
+  
+  .bt-warning { width: 100%; padding: 10px 14px; background: rgba(20,10,0,0.8); border: 1px solid #3a2000; border-radius: 3px; font-size: 10px; letter-spacing: 1px; color: #ffaa00; line-height: 1.6; display: none; }
+  .bt-warning.visible { display: block; }
+  footer { margin-top: auto; padding: 12px; font-size: 9px; letter-spacing: 2px; color: #0a3a0a; text-align: center; text-transform: uppercase; }
+  .demo-badge { display: none; position: absolute; top: 26px; left: 50%; transform: translateX(-50%); font-size: 9px; letter-spacing: 3px; background: rgba(0,255,65,0.1); border: 1px solid var(--neon-dim); color: var(--neon-dim); padding: 2px 8px; border-radius: 2px; z-index: 3; }
+  .demo-badge.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-label">◈ IoT Sensor Array ◈</div>
+  <h1>Ultrasonic Radar Scanner</h1>
+  <div class="header-line"></div>
+</header>
+
+<main>
+  <div class="status-row">
+    <div class="led" id="alertLed"></div>
+    <div class="led-alert" id="alertText">⚠ OBJECT DETECTED</div>
+    <div class="conn-status" id="connStatus">● DISCONNECTED</div>
+  </div>
+
+  <div class="radar-wrapper">
+    <div class="demo-badge" id="demoBadge">◉ DEMO MODE</div>
+    <canvas id="radarCanvas"></canvas>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-label">Angle</div><div class="stat-value" id="statAngle">—<span class="stat-unit">°</span></div></div>
+    <div class="stat-box"><div class="stat-label">Distance</div><div class="stat-value" id="statDist">—<span class="stat-unit">cm</span></div></div>
+    <div class="stat-box"><div class="stat-label">Max Range</div><div class="stat-value">300<span class="stat-unit">cm</span></div></div>
+  </div>
+
+  <div class="controls-row">
+    <button class="btn" id="btnBluetooth" onclick="connectBluetooth()">⬡ BLE Connect</button>
+    <!-- NAYA USB OTG BUTTON -->
+    <button class="btn" id="btnUsb" onclick="connectUsb()">⇿ USB (OTG)</button>
+    <button class="btn btn-demo" id="btnDemo" onclick="toggleDemo()">▶ Demo</button>
+  </div>
+
+  <div class="bt-warning" id="btWarning"></div>
+</main>
+
+<footer>HYBRID APP: WEB BLUETOOTH (BLE) & WEB SERIAL (OTG) SUPPORTED</footer>
+
+<script>
+// --- Canvas aur UI Config wahi purana hai ---
+const MAX_RANGE = 300, TRAIL_FADE = 0.025, CLOSE_WARN = 40, BEEP_THRESH = 15;
+let sweepAngle = 0, sweepDir = 1, objects = [], currentAngle = 0, currentDist = 0;
+let demoMode = false, demoInterval = null, btDevice = null, btChar = null;
+let usbPort = null, usbReader = null; 
+let dataBuffer = '', audioCtx = null, animId = null;
+
+const canvas = document.getElementById('radarCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const w = canvas.parentElement.clientWidth;
+  canvas.width = w; canvas.height = Math.round(w * 0.56);
+}
+resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+
+function getRadarParams() {
+  const W = canvas.width, H = canvas.height, cx = W / 2, cy = H - H * 0.08, R = Math.min(cx, cy) * 0.96;
+  return { W, H, cx, cy, R };
+}
+
+function drawRadar() {
+  const { W, H, cx, cy, R } = getRadarParams();
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  grad.addColorStop(0, 'rgba(0,255,65,0.05)'); grad.addColorStop(0.5, 'rgba(0,255,65,0.02)'); grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  [0.2, 0.4, 0.6, 0.8, 1.0].forEach((t, i) => {
+    const r = R * t; ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0, false);
+    ctx.strokeStyle = i === 4 ? 'rgba(0,255,65,0.5)' : 'rgba(0,255,65,0.18)'; ctx.lineWidth = i === 4 ? 1.5 : 1; ctx.stroke();
+    ctx.fillStyle = 'rgba(0,255,65,0.45)'; ctx.font = `${Math.max(8, W * 0.018)}px Share Tech Mono`;
+    ctx.fillText(`${Math.round(MAX_RANGE * t)}`, cx + r * 0.98 + 2, cy - 3);
+  });
+  [0, 30, 60, 90, 120, 150, 180].forEach(deg => {
+    const rad = deg * Math.PI / 180, x = cx + R * Math.cos(Math.PI - rad), y = cy - R * Math.sin(rad);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y); ctx.strokeStyle = deg === 90 ? 'rgba(0,255,65,0.35)' : 'rgba(0,255,65,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+    const lx = cx + (R + 14) * Math.cos(Math.PI - rad), ly = cy - (R + 14) * Math.sin(rad);
+    ctx.fillStyle = 'rgba(0,255,65,0.5)'; ctx.font = `${Math.max(8, W * 0.018)}px Share Tech Mono`; ctx.textAlign = 'center'; ctx.fillText(`${deg}°`, lx, ly + 4);
+  });
+  ctx.textAlign = 'left'; ctx.beginPath(); ctx.moveTo(cx - R - 4, cy); ctx.lineTo(cx + R + 4, cy);
+  ctx.strokeStyle = 'rgba(0,255,65,0.5)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+}
+
+function drawSweep() {
+  const { cx, cy, R } = getRadarParams(); const rad = sweepAngle * Math.PI / 180;
+  const ex = cx + R * Math.cos(Math.PI - rad), ey = cy - R * Math.sin(rad);
+  ctx.save();
+  for (let i = 0; i < 18; i++) {
+    const a = (sweepAngle - i * 1.4 * sweepDir) * Math.PI / 180; if (a < 0 || a > Math.PI) continue;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + R * Math.cos(Math.PI - a), cy - R * Math.sin(a));
+    ctx.strokeStyle = `rgba(0,255,65,${(1 - i / 18) * 0.12})`; ctx.lineWidth = 4; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2;
+  ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 12; ctx.stroke(); ctx.shadowBlur = 0; ctx.restore();
+}
+
+function drawObject(angle, distance, alpha) {
+  const { cx, cy, R } = getRadarParams(), normDist = Math.min(distance / MAX_RANGE, 1);
+  const rad = angle * Math.PI / 180, x = cx + R * normDist * Math.cos(Math.PI - rad), y = cy - R * normDist * Math.sin(rad);
+  const r = Math.max(3, R * 0.022);
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.arc(x, y, r * 2.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,32,32,0.15)`; ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = '#ff2020'; ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10; ctx.fill();
+  ctx.shadowBlur = 0; ctx.restore();
+}
+
+function updateAlert(distance) {
+  const led = document.getElementById('alertLed'), text = document.getElementById('alertText');
+  if (distance > 0 && distance < CLOSE_WARN) { led.className = 'led red'; text.className = 'led-alert visible'; if (distance < BEEP_THRESH) playBeep(); }
+  else { led.className = 'led green'; text.className = 'led-alert'; }
+}
+
+let lastBeep = 0;
+function playBeep() {
+  const now = Date.now(); if (now - lastBeep < 600) return; lastBeep = now;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 880; osc.type = 'square';
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+  } catch(e) {}
+}
+
+function updateStats(angle, distance) {
+  document.getElementById('statAngle').innerHTML = `${Math.round(angle)}<span class="stat-unit">°</span>`;
+  document.getElementById('statDist').innerHTML = distance > 0 ? `${Math.round(distance)}<span class="stat-unit">cm</span>` : `—<span class="stat-unit">cm</span>`;
+}
+
+function parseData(raw) {
+  dataBuffer += raw; const parts = dataBuffer.split('.'); dataBuffer = parts.pop();
+  parts.forEach(chunk => {
+    chunk = chunk.trim(); if (!chunk) return;
+    const [aStr, dStr] = chunk.split(','); const angle = parseFloat(aStr), distance = parseFloat(dStr);
+    if (isNaN(angle) || isNaN(distance) || angle < 0 || angle > 180) return;
+    objects.push({ angle, distance, alpha: 1.0 }); updateStats(angle, distance); updateAlert(distance);
+  });
+}
+
+function animate() {
+  animId = requestAnimationFrame(animate);
+  sweepAngle += sweepDir * 1.2;
+  if (sweepAngle >= 180) { sweepAngle = 180; sweepDir = -1; }
+  if (sweepAngle <= 0) { sweepAngle = 0; sweepDir = 1; }
+  drawRadar();
+  objects = objects.filter(o => o.alpha > 0.01);
+  objects.forEach(o => { drawObject(o.angle, o.distance, o.alpha); o.alpha -= TRAIL_FADE; });
+  drawSweep();
+}
+
+// ====================== NAYA USB OTG CONNECTION ======================
+async function connectUsb() {
+  const status = document.getElementById('connStatus');
+  const warn = document.getElementById('btWarning');
+  
+  if (!navigator.serial) {
+    warn.innerHTML = "⚠ USB Serial not supported. Use Chrome Browser on Android or PC.";
+    warn.className = 'bt-warning visible'; return;
+  }
+  
+  try {
+    usbPort = await navigator.serial.requestPort();
+    await usbPort.open({ baudRate: 9600 });
+    
+    status.textContent = '● USB CONNECTED';
+    status.className = 'conn-status connected';
+    warn.className = 'bt-warning';
+    if (demoMode) toggleDemo();
+    
+    // Read Loop
+    const textDecoder = new TextDecoderStream();
+    usbPort.readable.pipeTo(textDecoder.writable);
+    usbReader = textDecoder.readable.getReader();
+    
+    while (true) {
+      const { value, done } = await usbReader.read();
+      if (done) break;
+      if (value) parseData(value);
+    }
+  } catch (e) {
+    status.textContent = '● ERROR';
+    status.className = 'conn-status error';
+    console.error(e);
+  }
+}
+
+// ====================== BLUETOOTH CONNECTION ======================
+async function connectBluetooth() {
+  const btn = document.getElementById('btnBluetooth'), status = document.getElementById('connStatus'), warn = document.getElementById('btWarning');
+  if (btDevice && btDevice.gatt.connected) {
+    btDevice.gatt.disconnect(); btDevice = null; btChar = null;
+    btn.textContent = '⬡ BLE Connect'; status.textContent = '● DISCONNECTED'; status.className = 'conn-status'; warn.className = 'bt-warning'; return;
+  }
+  if (!navigator.bluetooth) {
+    warn.innerHTML = "⚠ Web Bluetooth not supported. Try USB (OTG) instead."; warn.className = 'bt-warning visible'; return;
+  }
+  try {
+    status.textContent = '◌ SCANNING…'; status.className = 'conn-status'; btn.textContent = '⬡ Connecting…';
+    btDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true, optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb', '6e400001-b5a3-f393-e0a9-e50e24dcca9e']
+    });
+    btDevice.addEventListener('gattserverdisconnected', () => {
+      btDevice = null; btChar = null; status.textContent = '● DISCONNECTED'; status.className = 'conn-status'; btn.textContent = '⬡ BLE Connect';
+    });
+    const server = await btDevice.gatt.connect();
+    let service, characteristic;
+    try { service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb'); characteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb'); } 
+    catch { service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e'); characteristic = await service.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e'); }
+    btChar = characteristic; await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', (e) => parseData(new TextDecoder('utf-8').decode(e.target.value)));
+    status.textContent = '● BLE CONNECTED'; status.className = 'conn-status connected'; btn.textContent = '⬡ Disconnect'; warn.className = 'bt-warning';
+    if (demoMode) toggleDemo();
+  } catch(e) {
+    btDevice = null; status.textContent = '● ERROR'; status.className = 'conn-status error'; btn.textContent = '⬡ BLE Connect';
+    warn.innerHTML = `⚠ BLE Connection Failed. (If you have HC-05, use USB OTG instead).`; warn.className = 'bt-warning visible';
+  }
+}
+
+function toggleDemo() {
+  const btn = document.getElementById('btnDemo'), badge = document.getElementById('demoBadge');
+  demoMode = !demoMode;
+  if (demoMode) {
+    btn.textContent = '■ Stop Demo'; badge.className = 'demo-badge visible';
+    let demoAngle = 0, demoAngleDir = 1;
+    demoInterval = setInterval(() => {
+      demoAngle += demoAngleDir * 3; if (demoAngle >= 180) { demoAngle = 180; demoAngleDir = -1; } if (demoAngle <= 0) { demoAngle = 0; demoAngleDir = 1; }
+      let demoDist = 60 + Math.sin(Date.now() / 800) * 50 + Math.sin(Date.now() / 300) * 30; if (Math.random() < 0.04) demoDist = Math.random() * 18;
+      demoDist = Math.max(5, Math.min(280, demoDist)); parseData(`${demoAngle},${demoDist.toFixed(1)}.`);
+    }, 40);
+  } else {
+    btn.textContent = '▶ Demo'; badge.className = 'demo-badge'; clearInterval(demoInterval); demoInterval = null;
+    document.getElementById('alertLed').className = 'led'; document.getElementById('alertText').className = 'led-alert';
+  }
+}
+animate();
+</script>
+</body>
+</html>
+
+```
